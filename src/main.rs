@@ -159,7 +159,7 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                 }
             };
 
-            let mut logs = container
+            let logs = container
                 .logs
                 .iter()
                 .map(|l| {
@@ -177,24 +177,16 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                         .unwrap_or_else(|e| format!("-- Failed to parse bytes as utf8: {}", e))
                 })
                 .collect::<Vec<_>>();
-            logs.reverse();
 
-            let mut n = 0;
-            let i = logs
+            let mut chars = 0;
+            let logs = logs
                 .iter()
-                .map(|l| {
-                    if n > 1500 {
-                        None
-                    } else {
-                        n += l.len();
-                        Some(())
-                    }
+                .rev()
+                .take_while(|l| {
+                    chars += l.len();
+                    chars < 1500
                 })
-                .while_some()
-                .count();
-
-            logs.reverse();
-            logs.truncate(i - 1);
+                .join("");
 
             let embeds = &[Embed {
                 author: None,
@@ -206,7 +198,7 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                     container.command,
                     container.status,
                     container.image,
-                    logs.join("")
+                    logs,
                 )),
                 fields: vec![],
                 footer: Some(EmbedFooter {
