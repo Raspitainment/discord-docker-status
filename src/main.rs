@@ -37,7 +37,7 @@ async fn main() {
     let _containers = containers.clone();
 
     if let Err(e) = tokio::try_join!(container_thread(_containers), message_update(containers)) {
-        error!("Error: {:?}", e);
+        error!("Error: {:#}", e);
     }
 }
 
@@ -92,7 +92,7 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
                         since: 0,
                         until: 0,
                         timestamps: false,
-                        tail: "30",
+                        tail: "20",
                     }),
                 )
                 .try_collect::<Vec<_>>()
@@ -170,7 +170,7 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                     container
                         .logs
                         .iter()
-                        .map(|l| {
+                        .flat_map(|l| {
                             let message = match l {
                                 LogOutput::StdErr { message } => message,
                                 LogOutput::StdOut { message } => message,
@@ -181,11 +181,15 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                             .copied()
                             .collect_vec();
 
-                            String::from_utf8(message).unwrap_or_else(|e| {
-                                format!("-- Failed to parse bytes as utf8: {}", e)
-                            })
+                            String::from_utf8(message)
+                                .unwrap_or_else(|e| {
+                                    format!("-- Failed to parse bytes as utf8: {}", e)
+                                })
+                                .chars()
+                                .collect::<Vec<_>>()
                         })
-                        .join(""),
+                        .take(1500)
+                        .collect::<String>(),
                 )),
                 fields: vec![],
                 footer: Some(EmbedFooter {
