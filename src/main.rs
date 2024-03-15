@@ -7,7 +7,7 @@ use bollard::{
 };
 use futures::StreamExt;
 use itertools::Itertools;
-use log::{info, warn};
+use log::{error, info, warn};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use twilight_http::Client as HttpClient;
@@ -23,23 +23,22 @@ const GUILD: Id<GuildMarker> = Id::new(1209473653759016990);
 const CATEGORY: Id<ChannelMarker> = Id::new(1218191011348615240);
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
     simplelog::TermLogger::init(
         simplelog::LevelFilter::Info,
         simplelog::Config::default(),
         simplelog::TerminalMode::Mixed,
         simplelog::ColorChoice::Auto,
     )
-    .context("Failed to initialize logger")?;
+    .unwrap();
 
     let containers = Arc::new(Mutex::new(HashMap::new()));
 
     let _containers = containers.clone();
 
-    tokio::try_join!(container_thread(_containers), message_update(containers))
-        .context("Failed to join threads")?;
-
-    Ok(())
+    if let Err(e) = tokio::try_join!(container_thread(_containers), message_update(containers)) {
+        error!("Error: {:#}", e);
+    }
 }
 
 struct Container {
