@@ -118,7 +118,7 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
 
         info!("Updated containers");
 
-        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
     }
 }
 
@@ -128,6 +128,8 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
     let http = Arc::new(HttpClient::new(token));
 
     let mut channels = HashMap::<String, _>::new();
+
+    tokio::time::sleep(std::time::Duration::from_secs(15)).await;
 
     loop {
         info!("Updating messages");
@@ -157,6 +159,43 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                 }
             };
 
+            let mut logs = container
+                .logs
+                .iter()
+                .map(|l| {
+                    let message = match l {
+                        LogOutput::StdErr { message } => message,
+                        LogOutput::StdOut { message } => message,
+                        LogOutput::StdIn { message } => message,
+                        LogOutput::Console { message } => message,
+                    }
+                    .iter()
+                    .copied()
+                    .collect_vec();
+
+                    String::from_utf8(message)
+                        .unwrap_or_else(|e| format!("-- Failed to parse bytes as utf8: {}", e))
+                })
+                .collect::<Vec<_>>();
+            logs.reverse();
+
+            let mut n = 0;
+            let i = logs
+                .iter()
+                .map(|l| {
+                    if n > 1500 {
+                        None
+                    } else {
+                        n += l.len();
+                        Some(())
+                    }
+                })
+                .while_some()
+                .count();
+
+            logs.reverse();
+            logs.truncate(i - 1);
+
             let embeds = &[Embed {
                 author: None,
                 color: Some(0x4F759B),
@@ -167,29 +206,7 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                     container.command,
                     container.status,
                     container.image,
-                    container
-                        .logs
-                        .iter()
-                        .flat_map(|l| {
-                            let message = match l {
-                                LogOutput::StdErr { message } => message,
-                                LogOutput::StdOut { message } => message,
-                                LogOutput::StdIn { message } => message,
-                                LogOutput::Console { message } => message,
-                            }
-                            .iter()
-                            .copied()
-                            .collect_vec();
-
-                            String::from_utf8(message)
-                                .unwrap_or_else(|e| {
-                                    format!("-- Failed to parse bytes as utf8: {}", e)
-                                })
-                                .chars()
-                                .collect::<Vec<_>>()
-                        })
-                        .take(1500)
-                        .collect::<String>(),
+                    logs.join("")
                 )),
                 fields: vec![],
                 footer: Some(EmbedFooter {
@@ -239,6 +256,6 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
             channels.insert(container.id.clone(), (channel, Some(id)));
         }
 
-        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
     }
 }
