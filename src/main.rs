@@ -179,20 +179,7 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                         .filter(|c| !c.is_ascii_control() && c.is_alphanumeric())
                         .collect::<String>()
                 })
-                .collect::<Vec<_>>();
-
-            let mut chars = 0;
-            let logs = logs
-                .iter()
-                .rev()
-                .take_while(|l| {
-                    chars += l.len();
-                    chars < 1500
-                })
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .join("");
+                .join("\n");
 
             let embeds = &[Embed {
                 author: None,
@@ -204,7 +191,11 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                     container.command,
                     container.status,
                     container.image,
-                    logs,
+                    if logs.len() > 1500 {
+                        &logs[logs.len() - 1500..]
+                    } else {
+                        &logs
+                    }
                 )),
                 fields: vec![],
                 footer: Some(EmbedFooter {
