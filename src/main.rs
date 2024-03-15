@@ -5,7 +5,7 @@ use bollard::{
     container::{LogOutput, LogsOptions},
     Docker,
 };
-use futures::StreamExt;
+use futures::TryStreamExt;
 use itertools::Itertools;
 use log::{error, info, warn};
 use std::{collections::HashMap, sync::Arc};
@@ -37,7 +37,7 @@ async fn main() {
     let _containers = containers.clone();
 
     if let Err(e) = tokio::try_join!(container_thread(_containers), message_update(containers)) {
-        error!("Error: {:#}", e);
+        error!("Error: {:?}", e);
     }
 }
 
@@ -91,14 +91,12 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
                         stderr: true,
                         since: 0,
                         until: 0,
-                        timestamps: true,
+                        timestamps: false,
                         tail: "30",
                     }),
                 )
-                .collect::<Vec<_>>()
+                .try_collect::<Vec<_>>()
                 .await
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
                 .context("Failed to get logs")?;
 
             info!("Got {} logs", logs.len());
@@ -187,7 +185,7 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                                 format!("-- Failed to parse bytes as utf8: {}", e)
                             })
                         })
-                        .join("\n"),
+                        .join(""),
                 )),
                 fields: vec![],
                 footer: Some(EmbedFooter {
