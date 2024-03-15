@@ -186,6 +186,9 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                     chars += l.len();
                     chars < 1500
                 })
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
                 .join("");
 
             let embeds = &[Embed {
