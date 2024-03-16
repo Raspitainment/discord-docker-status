@@ -11,9 +11,16 @@ use log::{error, info, warn};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use twilight_http::Client as HttpClient;
-use twilight_model::id::{
-    marker::{ChannelMarker, GuildMarker},
-    Id,
+use twilight_model::{
+    channel::message::{
+        embed::{EmbedAuthor, EmbedFooter},
+        Embed,
+    },
+    id::{
+        marker::{ChannelMarker, GuildMarker},
+        Id,
+    },
+    util::Timestamp,
 };
 
 const GUILD: Id<GuildMarker> = Id::new(1209473653759016990);
@@ -227,22 +234,46 @@ async fn message_update(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
                 })
                 .collect::<String>();
 
-            let content = format!(
-                "Container **{}** ({})\nRunning `{}`\nis {} with image `{}`\n```{}\n```Updated at {}",
-                container.name,
-                container.id,
-                container.command,
-                container.status,
-                container.image,
-                &logs[(logs.len() as i64 - 1500).max(0) as usize..],
-                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
-            );
+            let embed = &[Embed {
+                author: Some(EmbedAuthor {
+                    icon_url: None,
+                    name: format!("{} ({})", container.name, container.id),
+                    proxy_icon_url: None,
+                    url: None,
+                }),
+                color: Some(0x3772FF),
+                description: Some(format!(
+                    "Image `{}`\nRunning `{}`:\n```{}```",
+                    container.image,
+                    container.command,
+                    &logs[(logs.len() as i64 - 4096).max(0) as usize..],
+                )),
+                fields: vec![],
+                footer: Some(EmbedFooter {
+                    icon_url: None,
+                    proxy_icon_url: None,
+                    text: format!("{} ({})", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")),
+                }),
+                image: None,
+                kind: "rich".to_string(),
+                provider: None,
+                thumbnail: None,
+                timestamp: Some(
+                    Timestamp::from_micros(chrono::Utc::now().timestamp_millis())
+                        .context("Failed to get timestamp")?,
+                ),
+                title: Some(container.status.clone()),
+                url: None,
+                video: None,
+            }];
 
             let id = match message {
                 Some(message) => {
                     http.update_message(channel, message)
-                        .content(Some(&content))
+                        .content(Some(""))
                         .context("Failed to set message content")?
+                        .embeds(Some(embed))
+                        .context("Failed to set message embeds")?
                         .await
                         .context("Failed to send message")?
                         .model()
@@ -252,8 +283,10 @@ async fn message_update(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
                 }
                 None => {
                     http.create_message(channel)
-                        .content(&content)
+                        .content("")
                         .context("Failed to set message content")?
+                        .embeds(embed)
+                        .context("Failed to set message embeds")?
                         .await
                         .context("Failed to send message")?
                         .model()
@@ -265,6 +298,8 @@ async fn message_update(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
 
             channels.insert(container.id.clone(), (channel, Some(id)));
         }
+
+        info!("Updated messages");
 
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
     }

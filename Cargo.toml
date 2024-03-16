@@ -1,5 +1,5 @@
 [package]
-name = "discord-build-integration"
+name = "discord-docker-status"
 version = "0.1.0"
 edition = "2021"
 
