@@ -2,7 +2,7 @@
 
 use anyhow::Context;
 use bollard::{
-    container::{LogOutput, LogsOptions},
+    container::{ListContainersOptions, LogOutput, LogsOptions},
     Docker,
 };
 use futures::StreamExt;
@@ -11,12 +11,9 @@ use log::{error, info, warn};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use twilight_http::Client as HttpClient;
-use twilight_model::{
-    channel::message::{embed::EmbedFooter, Embed},
-    id::{
-        marker::{ChannelMarker, GuildMarker},
-        Id,
-    },
+use twilight_model::id::{
+    marker::{ChannelMarker, GuildMarker},
+    Id,
 };
 
 const GUILD: Id<GuildMarker> = Id::new(1209473653759016990);
@@ -57,7 +54,12 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
         info!("Updating containers");
 
         let containers = docker
-            .list_containers::<&str>(None)
+            .list_containers::<&str>(Some(ListContainersOptions {
+                all: true,
+                limit: None,
+                size: false,
+                filters: Default::default(),
+            }))
             .await
             .context("Failed to list containers")?;
 
