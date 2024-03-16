@@ -38,7 +38,6 @@ async fn main() {
 
     let containers = Arc::new(Mutex::new(Store {
         containers: HashMap::new(),
-        to_remove: Vec::new(),
     }));
 
     let _containers = containers.clone();
@@ -55,6 +54,10 @@ struct Container {
     command: String,
     status: String,
     logs: Vec<LogOutput>,
+}
+
+struct Store {
+    containers: HashMap<String, Container>,
 }
 
 async fn container_thread(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
@@ -132,12 +135,6 @@ async fn container_thread(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
 
         {
             let mut store = store.lock().await;
-            store.to_remove = store
-                .containers
-                .keys()
-                .filter(|&name| !new_store.contains_key(name))
-                .cloned()
-                .collect();
             store.containers = new_store;
         }
 
@@ -145,11 +142,6 @@ async fn container_thread(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
 
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
     }
-}
-
-struct Store {
-    containers: HashMap<String, Container>,
-    to_remove: Vec<String>,
 }
 
 async fn message_update(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
@@ -162,28 +154,32 @@ async fn message_update(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
     tokio::time::sleep(std::time::Duration::from_secs(15)).await;
 
     loop {
-        info!("Updating messages");
+        info!(
+            "Updating messages, channels: {}",
+            channels.keys().join(", ")
+        );
 
-        for name in store.lock().await.to_remove.drain(..) {
-            for channel in http
-                .guild_channels(GUILD)
+        let names = {
+            store
+                .lock()
                 .await
-                .context("Failed to get guild channels")?
-                .model()
+                .containers
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        let mut remove = vec![];
+        for (name, &(channel, _)) in channels.iter().filter(|&(name, _)| !names.contains(name)) {
+            http.delete_channel(channel)
                 .await
-                .context("Failed to get guild channels model")?
-                .iter()
-                .filter(|c| c.parent_id == Some(CATEGORY))
-                .filter(|c| c.name.as_ref() == Some(&name))
-            {
-                http.delete_channel(channel.id)
-                    .await
-                    .context("Failed to delete channel")?;
+                .context("Failed to delete channel")?;
 
-                channels.remove(&name);
+            remove.push(name.clone());
 
-                info!("Deleted channel: {:?} ({})", channel.name, channel.id);
-            }
+            info!("Deleted channel: {} ({})", name, channel);
+        }
+        for name in remove {
+            channels.remove(&name);
         }
 
         for container in store.lock().await.containers.values().collect::<Vec<_>>() {
