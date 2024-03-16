@@ -5,7 +5,7 @@ use bollard::{
     container::{LogOutput, LogsOptions},
     Docker,
 };
-use futures::TryStreamExt;
+use futures::StreamExt;
 use itertools::Itertools;
 use log::{error, info, warn};
 use std::{collections::HashMap, sync::Arc};
@@ -95,9 +95,11 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
                         tail: "20",
                     }),
                 )
-                .try_collect::<Vec<_>>()
+                .collect::<Vec<_>>()
                 .await
-                .context("Failed to get logs")?;
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
 
             info!("Got {} logs", logs.len());
 
