@@ -29,7 +29,10 @@ async fn main() {
     )
     .unwrap();
 
-    let containers = Arc::new(Mutex::new(HashMap::new()));
+    let containers = Arc::new(Mutex::new(Store {
+        containers: HashMap::new(),
+        to_remove: Vec::new(),
+    }));
 
     let _containers = containers.clone();
 
@@ -47,7 +50,7 @@ struct Container {
     logs: Vec<LogOutput>,
 }
 
-async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow::Result<()> {
+async fn container_thread(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
     let docker = Docker::connect_with_socket_defaults().context("Failed to connect to Docker")?;
 
     loop {
@@ -120,7 +123,16 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
                 .logs = logs;
         }
 
-        *store.lock().await = new_store;
+        {
+            let mut store = store.lock().await;
+            store.to_remove = store
+                .containers
+                .keys()
+                .filter(|&name| !new_store.contains_key(name))
+                .cloned()
+                .collect();
+            store.containers = new_store;
+        }
 
         info!("Updated containers");
 
@@ -128,7 +140,12 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
     }
 }
 
-async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow::Result<()> {
+struct Store {
+    containers: HashMap<String, Container>,
+    to_remove: Vec<String>,
+}
+
+async fn message_update(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
     let token = std::env::var("DISCORD_TOKEN").context("Failed to get DISCORD_TOKEN")?;
 
     let http = Arc::new(HttpClient::new(token));
@@ -140,7 +157,29 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
     loop {
         info!("Updating messages");
 
-        for container in store.lock().await.values().collect::<Vec<_>>() {
+        for name in store.lock().await.to_remove.drain(..) {
+            for channel in http
+                .guild_channels(GUILD)
+                .await
+                .context("Failed to get guild channels")?
+                .model()
+                .await
+                .context("Failed to get guild channels model")?
+                .iter()
+                .filter(|c| c.parent_id == Some(CATEGORY))
+                .filter(|c| c.name.as_ref() == Some(&name))
+            {
+                http.delete_channel(channel.id)
+                    .await
+                    .context("Failed to delete channel")?;
+
+                channels.remove(&name);
+
+                info!("Deleted channel: {:?} ({})", channel.name, channel.id);
+            }
+        }
+
+        for container in store.lock().await.containers.values().collect::<Vec<_>>() {
             let (channel, message) = match channels.get(&container.id) {
                 Some(channel) => *channel,
                 None => {
