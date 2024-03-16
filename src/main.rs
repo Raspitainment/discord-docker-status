@@ -178,7 +178,7 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                     String::from_utf8(message)
                         .unwrap_or_else(|e| format!("-- Failed to parse bytes as utf8: {}", e))
                         .chars()
-                        .filter(|c| !c.is_ascii_control() && c.is_alphanumeric())
+                        .filter(|c| !c.is_control())
                         .collect::<String>()
                 })
                 .join("\n");
