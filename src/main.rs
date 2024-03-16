@@ -106,7 +106,7 @@ async fn container_thread(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
                         since: 0,
                         until: 0,
                         timestamps: false,
-                        tail: "20",
+                        tail: "40",
                     }),
                 )
                 .collect::<Vec<_>>()
