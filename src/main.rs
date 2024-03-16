@@ -259,7 +259,7 @@ async fn message_update(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
                 provider: None,
                 thumbnail: None,
                 timestamp: Some(
-                    Timestamp::from_micros(chrono::Utc::now().timestamp_millis())
+                    Timestamp::from_micros(chrono::Utc::now().timestamp_micros())
                         .context("Failed to get timestamp")?,
                 ),
                 title: Some(container.status.clone()),
