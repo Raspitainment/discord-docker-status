@@ -53,6 +53,8 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
     loop {
         info!("Updating containers");
 
+        let mut new_store = HashMap::new();
+
         let containers = docker
             .list_containers::<&str>(Some(ListContainersOptions {
                 all: true,
@@ -105,9 +107,7 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
 
             info!("Got {} logs", logs.len());
 
-            store
-                .lock()
-                .await
+            new_store
                 .entry(id.to_string())
                 .or_insert(Container {
                     id: id.clone(),
@@ -119,6 +119,8 @@ async fn container_thread(store: Arc<Mutex<HashMap<String, Container>>>) -> anyh
                 })
                 .logs = logs;
         }
+
+        *store.lock().await = new_store;
 
         info!("Updated containers");
 
@@ -187,7 +189,7 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                 .collect::<String>();
 
             let content = format!(
-                "Container {} ({}) running {} is {} with image {}\n```{}\n```Updated at {}",
+                "Container **{}** ({})\nRunning `{}`\nis {} with image `{}`\n```{}\n```Updated at {}",
                 container.name,
                 container.id,
                 container.command,
