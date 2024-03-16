@@ -246,7 +246,7 @@ async fn message_update(store: Arc<Mutex<Store>>) -> anyhow::Result<()> {
                     "Image `{}`\nRunning `{}`:\n```{}```",
                     container.image,
                     container.command,
-                    &logs[(logs.len() as i64 - 4096).max(0) as usize..],
+                    &logs[(logs.len() as i64 - 3900).max(0) as usize..],
                 )),
                 fields: vec![],
                 footer: Some(EmbedFooter {
