@@ -184,41 +184,22 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                 })
                 .collect::<String>();
 
-            let embeds = &[Embed {
-                author: None,
-                color: Some(0x4F759B),
-                description: Some(format!(
-                    "Container {} ({}) running {} is {} with image {}\n```{}\n```",
-                    container.name,
-                    container.id,
-                    container.command,
-                    container.status,
-                    container.image,
-                    &logs[(logs.len() as i64 - 1500).max(0) as usize..]
-                )),
-                fields: vec![],
-                footer: Some(EmbedFooter {
-                    icon_url: None,
-                    proxy_icon_url: None,
-                    text: format!("Updated at {}", chrono::Utc::now()),
-                }),
-                image: None,
-                kind: "".to_string(),
-                provider: None,
-                thumbnail: None,
-                timestamp: None,
-                title: Some("Container Status".to_string()),
-                url: None,
-                video: None,
-            }];
+            let content = format!(
+                "Container {} ({}) running {} is {} with image {}\n```{}\n```Updated at {}",
+                container.name,
+                container.id,
+                container.command,
+                container.status,
+                container.image,
+                &logs[(logs.len() as i64 - 1500).max(0) as usize..],
+                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+            );
 
             let id = match message {
                 Some(message) => {
                     http.update_message(channel, message)
-                        .content(None)
+                        .content(Some(&content))
                         .context("Failed to set message content")?
-                        .embeds(Some(embeds))
-                        .context("Failed to set message embeds")?
                         .await
                         .context("Failed to send message")?
                         .model()
@@ -228,10 +209,8 @@ async fn message_update(store: Arc<Mutex<HashMap<String, Container>>>) -> anyhow
                 }
                 None => {
                     http.create_message(channel)
-                        .content("")
+                        .content(&content)
                         .context("Failed to set message content")?
-                        .embeds(embeds)
-                        .context("Failed to set message embeds")?
                         .await
                         .context("Failed to send message")?
                         .model()
