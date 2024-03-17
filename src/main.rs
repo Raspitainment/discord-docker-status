@@ -129,6 +129,8 @@ async fn run(
 
         discord
             .update_message(*channel_id, *message_id)
+            .content(None)
+            .context("Failed to set up message update")?
             .embeds(Some(&[embed]))
             .context("Failed to set up message update")?
             .await
